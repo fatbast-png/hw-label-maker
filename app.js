@@ -6,15 +6,15 @@
 
   var SAMPLE_NAME = "Sample cards";
   var SAMPLE_CSV = [
-    "Card Name,Card No.,Set,Rarity,Condition,Price,Qty",
-    "SAMPLE - Pikachu,025/198,Sample Set A,Common,LP,1.5,2",
-    "SAMPLE - Charizard ex,199/165,Sample Set B,Special Illustration Rare,NM,£89.99,1",
-    "SAMPLE - Mewtwo V,072/078,Sample Set C,Ultra Rare,NM,4,1",
-    "\"SAMPLE - Gardevoir ex, Special Illustration Rare\",245/198,Sample Set A,Special Illustration Rare,NM,\"£1,250.00\",1",
-    "SAMPLE - Snorlax,143/165,Sample Set B,Uncommon,MP,0.75,3",
-    "SAMPLE - Mega Charizard X ex Special Illustration Rare Alternate Art Promo,125/094,Sample Set C,Special Illustration Rare,NM,349.99,1"
+    "Card Name,Card No.,Set,Set Code,Rarity,Condition,Price,Qty",
+    "SAMPLE - Pikachu,025/198,Sample Set A,SMA,Common,LP,1.5,2",
+    "SAMPLE - Charizard ex,199/165,Sample Set B,SMB,Special Illustration Rare,NM,£89.99,1",
+    "SAMPLE - Mewtwo V,072/078,Sample Set C,SMC,Ultra Rare,NM,4,1",
+    "\"SAMPLE - Gardevoir ex, Special Illustration Rare\",245/198,Sample Set A,SMA,Special Illustration Rare,NM,\"£1,250.00\",1",
+    "SAMPLE - Snorlax,143/165,Sample Set B,SMB,Uncommon,MP,0.75,3",
+    "SAMPLE - Mega Charizard X ex Special Illustration Rare Alternate Art Promo,125/094,Sample Set C,SMC,Special Illustration Rare,NM,349.99,1"
   ].join("\n");
-  var EXAMPLE_CARD = { name: "SAMPLE - Card name", number: "000/000", price: "1.99", condition: "NM", set: "", rarity: "", qr: "", qty: 1 };
+  var EXAMPLE_CARD = { name: "SAMPLE - Card name", number: "000/000", price: "1.99", condition: "NM", set: "Sample set", setCode: "SMP", rarity: "", qr: "", qty: 1 };
 
   // state.cards is the current file's card list (same array the library saves).
   var state = { files: [], file: null, cards: [], ticks: {}, shown: [], iconImage: null, iconName: "", editing: null };
@@ -126,7 +126,7 @@
   function makeFile(name, text) {
     var parsed = C.parseCSV(text);
     if (!parsed.headers.length) return null;
-    var map = C.guessMapping(parsed.headers);
+    var map = C.guessMapping(parsed.headers, parsed.rows);
     var priceVals = map.price ? parsed.rows.map(function (r) { return r[map.price]; }) : [];
     var f = { id: uid(), name: uniqueName(name), createdAt: Date.now(), updatedAt: Date.now(),
       currency: C.detectCurrency(map.price, priceVals), edited: false,
@@ -403,7 +403,7 @@
     var foot = el("div", "card-foot");
     var info = el("div", "card-info");
     info.appendChild(el("div", "card-name", card.name || "(no name)"));
-    var bits = [card.number, card.condition, card.set].filter(Boolean).join(" · ");
+    var bits = [card.number, card.condition, card.setCode || card.set].filter(Boolean).join(" · ");
     info.appendChild(el("div", "card-meta", (card.qty > 1 ? "×" + card.qty + " · " : "") + (bits || "")));
     if (res.warnings.length) info.appendChild(el("div", "card-warn", res.warnings.join(". ")));
     foot.appendChild(info);
@@ -448,11 +448,11 @@
   }
 
   // ---------- edit a card ----------
-  var EDIT_FIELDS = { eName: "name", eNumber: "number", ePrice: "price", eCondition: "condition", eSet: "set", eRarity: "rarity", eQty: "qty", eLink: "qr" };
+  var EDIT_FIELDS = { eName: "name", eNumber: "number", ePrice: "price", eCondition: "condition", eSetCode: "setCode", eSet: "set", eRarity: "rarity", eQty: "qty", eLink: "qr" };
   function openEdit(i, focus) {
     if (!state.file) return;
     var isNew = i == null;
-    var card = isNew ? { name: "", number: "", price: "", condition: "NM", set: "", rarity: "", qr: "", qty: 1 } : state.cards[i];
+    var card = isNew ? { name: "", number: "", price: "", condition: "NM", setCode: "", set: "", rarity: "", qr: "", qty: 1 } : state.cards[i];
     state.editing = { index: isNew ? null : i };
     $("editTitle").textContent = isNew ? "Add a card" : "Edit card";
     $("eDelete").classList.toggle("hidden", isNew);
@@ -607,7 +607,7 @@
   };
 
   // ---------- printer ----------
-  var APP_VERSION = "3.0.1 (find-all + Bluetooth check)";
+  var APP_VERSION = "3.0.2 (show-all connect + set codes)";
   function log(text) { var p = $("log"); p.textContent += text + "\n"; p.scrollTop = p.scrollHeight; }
   function status(text) { $("printerStatus").textContent = text; }
   function setChip(stateName, text) {
@@ -660,16 +660,48 @@
     }, function (e) { diag.availability = "error: " + errText(e); showDiag(); });
   }
 
-  // showAll: open the browser's picker with every nearby device (no name filter), then hand the
-  // chosen device to NiimBlueLib via connect({ authorizedDevice }).
-  async function connectPrinter(showAll) {
-    showAll = showAll === true;
-    diag.lastAttempt = (showAll ? "Find printer (show all)" : "Connect printer") + " at " + new Date().toLocaleTimeString();
+  // The main way in (proven on Eddie's iPhone/Bluefy): open the browser's picker with every nearby
+  // device (no name filter), then hand the chosen device to NiimBlueLib via connect({ authorizedDevice }).
+  // connectPrinter(false) is the old name-filtered search, kept under Troubleshooting.
+  // connectPrinter(device) reconnects to a remembered device without the picker.
+  var LAST_PRINTER_KEY = "hw-last-printer";
+  function setConnectButtons(connected) {
+    $("connect").disabled = connected; $("connectNamed").disabled = connected; $("reconnect").disabled = connected;
+    $("disconnect").disabled = !connected;
+    if (connected) $("reconnect").classList.add("hidden");
+  }
+  function rememberPrinter(device) {
+    try { if (device && device.id) localStorage.setItem(LAST_PRINTER_KEY, JSON.stringify({ id: device.id, name: device.name || "" })); } catch (e) { /* ignore */ }
+  }
+  function rememberedPrinter() {
+    try { return JSON.parse(localStorage.getItem(LAST_PRINTER_KEY) || "null"); } catch (e) { return null; }
+  }
+  var knownDevice = null;
+  // If the browser supports getDevices(), look for the printer picked last time and offer a one-tap
+  // "Reconnect" button. Anything odd (no support, not found, slow) just leaves the button hidden.
+  function findRememberedPrinter() {
+    var saved = rememberedPrinter();
+    var bt = navigator.bluetooth;
+    if (!saved || !bt || typeof bt.getDevices !== "function") return;
+    var timeout = new Promise(function (res) { setTimeout(function () { res([]); }, 3000); });
+    Promise.race([Promise.resolve().then(function () { return bt.getDevices(); }), timeout]).then(function (list) {
+      var dev = (list || []).filter(function (d) { return d && d.id === saved.id; })[0];
+      if (!dev || printer.client) return;
+      knownDevice = dev;
+      $("reconnectText").textContent = "Reconnect " + (dev.name || saved.name || "last printer");
+      $("reconnect").classList.remove("hidden");
+    }, function () { /* ignore */ });
+  }
+  async function connectPrinter(mode) {
+    var showAll = mode === undefined || mode === true;
+    var given = (mode && typeof mode === "object") ? mode : null;
+    if (given) showAll = false;
+    diag.lastAttempt = (given ? "Reconnect" : showAll ? "Connect printer (show all)" : "Search by name (old way)") + " at " + new Date().toLocaleTimeString();
     diag.lastError = ""; diag.lastDevice = ""; showDiag();
     if (!window.niimbluelib) { diag.lastError = "printer library didn't load"; showDiag(); status("The printer library didn't load."); return false; }
     if (!navigator.bluetooth) { diag.lastError = "navigator.bluetooth missing"; showDiag(); noBluetooth(); return false; }
     var lib = window.niimbluelib;
-    var device = null;
+    var device = given;
     if (showAll) {
       // requestDevice must be the first await so it still counts as a tap.
       try {
@@ -678,7 +710,7 @@
         device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: NIIMBOT_SERVICES });
       } catch (e) {
         diag.lastError = "requestDevice (show all): " + errText(e); showDiag();
-        if (e && e.name === "NotFoundError") status("No device picked (or the list was empty). See the Bluetooth check box below.");
+        if (e && e.name === "NotFoundError") status("No device picked (or the list was empty). Open Troubleshooting below for the Bluetooth check.");
         else status("Couldn't search for devices: " + (e && e.message ? e.message : e));
         setChip("off", "Printer"); log("requestDevice failed: " + errText(e));
         return false;
@@ -691,7 +723,7 @@
     client.on("packetreceived", function (e) { log("<< " + lib.Utils.bufToHex(e.packet.toBytes())); });
     client.on("disconnect", function () {
       printer.client = null; status("Disconnected."); setChip("off", "Printer");
-      $("connect").disabled = false; $("connectAll").disabled = false; $("disconnect").disabled = true; updateSummary();
+      setConnectButtons(false); updateSummary(); findRememberedPrinter();
     });
     try {
       if (!device) status("Pick your printer (it shows as D110-...) in the box that opens.");
@@ -710,7 +742,8 @@
         Array.from($("density").options).forEach(function (o) { o.disabled = Number(o.value) > meta.densityMax; });
         if (Number($("density").value) > meta.densityMax) $("density").value = String(meta.densityMax);
       }
-      $("connect").disabled = true; $("connectAll").disabled = true; $("disconnect").disabled = false; updateSummary();
+      setConnectButtons(true); updateSummary();
+      if (device) rememberPrinter(device);
       diag.lastError = "none (connected)"; showDiag();
       return true;
     } catch (e) {
@@ -719,6 +752,7 @@
       var hint = "";
       if (device && e && /characteristic not found|No Services|NotFoundError|SecurityError/i.test((e.name || "") + " " + (e.message || "")))
         hint = " That device may not be the printer, or it didn't offer the NIIMBOT service.";
+      if (given) hint = " Tap Connect printer and pick it from the list instead.";
       status("Couldn't connect: " + (e && e.message ? e.message : e) + hint); setChip("off", "Printer");
       try { client.disconnect(); } catch (x) { /* ignore */ }
       return false;
@@ -731,8 +765,10 @@
         : "This browser can't use Bluetooth. Use Chrome or Edge (Android, Windows or Mac), or download PNGs.");
     status(msg); toast(msg, "Get PNGs", function () { $("exportZip").click(); });
   }
-  $("connect").onclick = function () { connectPrinter(false); };
-  $("connectAll").onclick = function () { connectPrinter(true); };
+  $("connect").onclick = function () { connectPrinter(true); };
+  $("connectNamed").onclick = function () { connectPrinter(false); };
+  $("reconnect").onclick = function () { if (knownDevice) connectPrinter(knownDevice); else connectPrinter(true); };
+  findRememberedPrinter();
   $("diagRefresh").onclick = checkAvailability;
   $("diagCopy").onclick = function () {
     var t = $("diag").textContent;
@@ -750,7 +786,7 @@
 
   $("print").onclick = async function () {
     if (printer.busy) return;
-    if (!printer.client) { if (!(await connectPrinter())) return; }
+    if (!printer.client) { if (!(await connectPrinter(true))) return; }
     var client = printer.client, lib = window.niimbluelib;
     if (!client) return;
     var opts = options();

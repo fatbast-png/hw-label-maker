@@ -1,6 +1,6 @@
 /* Offline support: keeps a copy of the app so it opens without signal.
    Bump VERSION whenever any app file changes so phones pick up the new copy. */
-var VERSION = "hw-labels-v3.0.1";
+var VERSION = "hw-labels-v3.0.2";
 var FILES = [
   "./", "index.html", "style.css", "app.js", "labels.js", "store.js", "manifest.webmanifest", "sample-cards.csv",
   "vendor/qrcode-generator-2.0.4.js", "vendor/niimbluelib-0.48.0.min.js",

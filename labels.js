@@ -76,6 +76,8 @@
     name: [/^(card )?name$/i, /^card$/i, /name/i, /title/i, /product/i],
     number: [/^(card )?(no\.?|num(ber)?|#)$/i, /number/i, /^no\b/i, /collector/i],
     price: [/^price$/i, /sell/i, /price/i, /£/, /value/i, /cost/i],
+    // Short set / expansion code such as "OP05" or "SV3pt5". Checked before the set name so "Set Code" isn't taken as the name.
+    setCode: [/^(set|expansion|exp)[ _.-]*(code|abbr|abbrev|abbreviation|id)$/i, /^code$/i, /^expansion$/i, /^(set|expansion)[ _.-]*code/i],
     set: [/^set( name)?$/i, /expansion/i, /^set/i],
     rarity: [/rarity/i],
     condition: [/condition/i, /grade/i, /^cond/i],
@@ -83,8 +85,9 @@
     qty: [/^qty$/i, /quantity/i, /copies/i, /count/i]
   };
 
-  /** Pick the most likely column for each field. Returns {field: header or ""}. */
-  function guessMapping(headers) {
+  /** Pick the most likely column for each field. Returns {field: header or ""}.
+      rows (optional): the CSV rows, used to tell a lone "Expansion" column of full set names from one of short codes. */
+  function guessMapping(headers, rows) {
     var used = {}, map = {};
     Object.keys(GUESSES).forEach(function (field) {
       map[field] = "";
@@ -94,6 +97,13 @@
         return false;
       });
     });
+    // A lone "Expansion" column holding long names (e.g. "Obsidian Flames") is the set name, not a code.
+    if (map.setCode && !map.set && /^expansion$/i.test(map.setCode) && rows && rows.length) {
+      var vals = rows.map(function (r) { return String(r[map.setCode] || ""); }).filter(Boolean);
+      var avg = vals.reduce(function (n, v) { return n + v.length; }, 0) / (vals.length || 1);
+      var spaced = vals.filter(function (v) { return /\s/.test(v.trim()); }).length;
+      if (avg > 10 || spaced > vals.length / 2) { map.set = map.setCode; map.setCode = ""; }
+    }
     return map;
   }
 
@@ -169,10 +179,10 @@
   /** Cards back to CSV text. The currency rides in the price header, e.g. "Price (€)". */
   function cardsToCSV(cards, currency) {
     var sym = currencyOf(currency).symbol;
-    var head = ["Card Name", "Card No.", "Set", "Rarity", "Condition", "Price (" + sym + ")", "Qty", "Link"];
+    var head = ["Card Name", "Card No.", "Set", "Set Code", "Rarity", "Condition", "Price (" + sym + ")", "Qty", "Link"];
     var lines = [head.join(",")];
     cards.forEach(function (c) {
-      lines.push([c.name, c.number, c.set, c.rarity, c.condition, plainPrice(c.price), c.qty || 1, c.qr].map(csvField).join(","));
+      lines.push([c.name, c.number, c.set, c.setCode, c.rarity, c.condition, plainPrice(c.price), c.qty || 1, c.qr].map(csvField).join(","));
     });
     return lines.join("\r\n") + "\r\n";
   }
@@ -186,8 +196,9 @@
 
   function fillTemplate(tpl, rec) {
     var isUrl = /^https?:\/\//i.test(tpl);
-    var out = String(tpl || "").replace(/\{(name|number|price|set|rarity|condition)\}/g, function (_, k) {
-      var v = rec[k] || "";
+    var out = String(tpl || "").replace(/\{(name|number|price|setcode|set|rarity|condition)\}/gi, function (_, k) {
+      k = k.toLowerCase();
+      var v = (k === "setcode" ? rec.setCode : rec[k]) || "";
       return isUrl ? encodeQueryValue(v) : v;
     });
     if (isUrl) out = out.replace(/ /g, "+").replace(/\++$/, "").replace(/=\++/, "=").replace(/\+{2,}/g, "+");
@@ -218,7 +229,7 @@
     var qty = parseInt(get("qty"), 10);
     return {
       name: get("name"), number: get("number"), price: get("price"),
-      set: get("set"), rarity: get("rarity"), condition: get("condition"), qr: get("qr"),
+      set: get("set"), setCode: get("setCode"), rarity: get("rarity"), condition: get("condition"), qr: get("qr"),
       qty: isNaN(qty) || qty < 1 ? 1 : Math.min(qty, 99)
     };
   }
@@ -231,7 +242,7 @@
     var max = f.max === "" || f.max == null ? NaN : Number(f.max);
     var out = [];
     cards.forEach(function (c, i) {
-      if (text && (c.name + " " + c.number).toLowerCase().indexOf(text) < 0) return;
+      if (text && (c.name + " " + c.number + " " + (c.setCode || "")).toLowerCase().indexOf(text) < 0) return;
       if (f.set && c.set !== f.set) return;
       if (f.rarity && c.rarity !== f.rarity) return;
       if (f.condition && c.condition !== f.condition) return;
@@ -347,6 +358,279 @@
     ctx.putImageData(d, 0, 0);
   }
 
+  // ---------- Layout with set info (v3.0.2) ----------
+  // Used when "Set" is switched on and the card has a set code or set name.
+  // Name across the top (up to 2 lines), set code + number on one line and condition below it
+  // at the bottom left, price big at the bottom right. Text never goes below MIN_INFO_PX
+  // (about 1.3 mm tall capitals at 8 dots per mm) and the price always stays the biggest text.
+  var MIN_INFO_PX = 14;   // cap height 14 * 0.72 = 10 dots = 1.26 mm
+  var MAX_INFO_PX = 18;
+  var MIN_NAME_PX = 12;   // name shrinks to this before it gets "…"
+  var SEP = " · ";
+
+  /** Largest px in [minPx, maxPx] where every line fits maxW. {px, fits} */
+  function fitPx(ctx, lines, maxW, maxPx, minPx, weight) {
+    maxPx = Math.floor(maxPx);
+    var ok = function (px) {
+      setFont(ctx, weight, px);
+      return lines.every(function (l) { return ctx.measureText(l).width <= maxW; });
+    };
+    if (maxPx < minPx) return { px: maxPx, fits: ok(maxPx) };
+    if (ok(maxPx)) return { px: maxPx, fits: true };
+    if (!ok(minPx)) return { px: minPx, fits: false };
+    var lo = minPx, hi = maxPx; // ok(lo) true, ok(hi) false
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (ok(mid)) lo = mid; else hi = mid; }
+    return { px: lo, fits: true };
+  }
+
+  /** The short set text for a card: the set code if there is one, else the set name. */
+  function setLabelFor(card) {
+    return String(card.setCode || "").trim() || String(card.set || "").trim();
+  }
+  /** Card number without a repeated set code: "OP05-119" with code "OP05" becomes "119". */
+  function shortNumber(number, code) {
+    number = String(number || "").trim(); code = String(code || "").trim();
+    if (!code || !number) return number;
+    var low = number.toLowerCase(), c = code.toLowerCase();
+    if (low.indexOf(c) === 0) {
+      var rest = number.slice(code.length).replace(/^[\s\-_#:/.]+/, "");
+      if (rest) return rest;
+    }
+    return number;
+  }
+
+  /** Name lines for a box: one line if it's big enough, else two, shrinking to minPx before "…". */
+  function layoutName(ctx, text, w, h, maxPx, minPx) {
+    var r1 = fitPx(ctx, [text], w, Math.min(h / 1.15, maxPx), minPx, "bold");
+    var best = { lines: [text], px: r1.px, fits: r1.fits };
+    if (h >= 2 * minPx * 1.08) {
+      setFont(ctx, "bold", 20);
+      var two = wrapTwo(ctx, text);
+      if (two.length === 2) {
+        var r2 = fitPx(ctx, two, w, Math.min(h / 2 / 1.08, maxPx), minPx, "bold");
+        if ((r2.fits && (!r1.fits || r2.px > r1.px * 1.12)) || (!r1.fits && !r2.fits)) best = { lines: two, px: r2.px, fits: r2.fits };
+      }
+    }
+    if (!best.fits) {
+      // Still too long at the smallest size: fill line 1 word by word, "…" at the end of line 2.
+      setFont(ctx, "bold", best.px);
+      var words = text.split(/\s+/), l1 = words[0], k = 1;
+      while (k < words.length && ctx.measureText(l1 + " " + words[k]).width <= w) { l1 += " " + words[k]; k++; }
+      var rest = words.slice(k).join(" ");
+      best.lines = best.lines.length === 2 && rest ? [ellipsize(ctx, l1, w), ellipsize(ctx, rest, w)] : [ellipsize(ctx, text, w)];
+      best.truncated = true;
+    }
+    return best;
+  }
+
+  /** Fit an info line into maxW at the current font. A "set · number" line loses letters from the set part first. */
+  function fitInfoLine(ctx, line, maxW) {
+    if (ctx.measureText(line.text).width <= maxW) return { text: line.text, cut: 0 };
+    if (line.set && line.rest) {
+      var s = line.set, tail = SEP + line.rest;
+      while (s.length > 1 && ctx.measureText(s + "…" + tail).width > maxW) s = s.slice(0, -1);
+      var t = s + "…" + tail;
+      if (ctx.measureText(t).width <= maxW && s.length >= 3) return { text: t, cut: line.set.length - s.length };
+    }
+    // Drop whole parts from the end (condition first) rather than leaving "199/165 · …".
+    var parts = line.parts.slice(), cut = 0;
+    while (parts.length > 1 && ctx.measureText(parts.join(SEP)).width > maxW) cut += parts.pop().length + 1;
+    var e = ellipsize(ctx, parts.join(SEP), maxW);
+    if (e !== parts.join(SEP)) cut += parts.join(SEP).length - e.length + 1;
+    return { text: e, cut: cut };
+  }
+
+  /** Ways to split set / number / condition into lines, most preferred first. */
+  function infoGroupings(setTxt, num, cond) {
+    function line(parts, hasSet) {
+      parts = parts.filter(Boolean); if (!parts.length) return null;
+      var o = { text: parts.join(SEP), parts: parts };
+      if (hasSet && setTxt && parts.length > 1 && parts[0] === setTxt) { o.set = setTxt; o.rest = parts.slice(1).join(SEP); }
+      return o;
+    }
+    var gs = [
+      [line([setTxt, num], true), line([cond])],
+      [line([setTxt, num, cond], true)],
+      [line([setTxt]), line([num, cond])],
+      [line([setTxt]), line([num]), line([cond])]
+    ];
+    var seen = {}, out = [];
+    gs.forEach(function (g, rank) {
+      g = g.filter(Boolean); var key = g.map(function (l) { return l.text; }).join("\n");
+      if (g.length && !seen[key]) { seen[key] = 1; out.push({ lines: g, rank: rank }); }
+    });
+    return out;
+  }
+
+  /** Work out the best layout. Returns a plan the drawer follows; also used by the tests. */
+  // Biggest bold size for the price that fits maxW wide and h tall, counting the real ink
+  // (the comma in "1,250" and the "$" reach below the line; they may use DESC_ROOM px of the margin).
+  var DESC_ROOM = 2;
+  function priceInk(ctx, price, px) {
+    setFont(ctx, "bold", px);
+    var m = ctx.measureText(price);
+    var asc = typeof m.actualBoundingBoxAscent === "number" ? m.actualBoundingBoxAscent : px * CAP;
+    var desc = typeof m.actualBoundingBoxDescent === "number" ? Math.max(0, m.actualBoundingBoxDescent) : 0;
+    return { w: m.width, asc: asc, desc: desc };
+  }
+  function fitPrice(ctx, price, maxW, h, maxPx) {
+    var lo = 1, hi = Math.max(1, Math.floor(maxPx || 200));
+    var ok = function (px) { var k = priceInk(ctx, price, px); return k.w <= maxW && k.asc + Math.max(0, k.desc - DESC_ROOM) <= h; };
+    if (!ok(lo)) return { px: lo, fits: false };
+    while (lo < hi) { var mid = Math.ceil((lo + hi) / 2); if (ok(mid)) lo = mid; else hi = mid - 1; }
+    return { px: lo, fits: true };
+  }
+  function priceBaseline(ctx, price, px, bottom) {
+    return bottom - Math.max(0, Math.ceil(priceInk(ctx, price, px).desc) - DESC_ROOM);
+  }
+
+  function planSetLayout(ctx, box, name, price, info) {
+    var groups = infoGroupings(info.set, info.number, info.condition);
+    var gap = 6, plans = [];
+    var priceMaxFor = function (h) { return h / CAP * 0.98; };
+    var isCode = !!info.isCode;
+    setFont(ctx, "normal", MIN_INFO_PX);
+    var pairFits = !!(info.set && info.number) && ctx.measureText(info.set + SEP + info.number).width <= box.w;
+
+    function finish(p) {
+      // Name gets the space above; it must stay smaller than the price.
+      if (name) {
+        var nameMax = p.pricePx ? Math.max(MIN_NAME_PX, Math.floor(p.pricePx * 0.92)) : 40;
+        p.name = layoutName(ctx, name, box.w, p.nameH, Math.min(nameMax, 40), Math.min(MIN_NAME_PX, nameMax));
+      }
+      // On very narrow labels a long price can't get big; then the set text drops to match it (never below the minimum).
+      if (p.pricePx && p.infoPx > p.pricePx) p.infoPx = Math.max(MIN_INFO_PX, p.pricePx);
+      // Scores: a bigger price helps less once it's already big; splitting set and number apart,
+      // cutting letters off, or cutting the name short all cost points.
+      var pp = p.pricePx || 0;
+      var score = Math.min(pp, 42) + 0.35 * Math.max(0, pp - 42) + (p.name ? p.name.px * 1.6 : 0) + (p.infoPx || 0) * 2;
+      // With a short code, splitting code and number onto separate lines is a last resort.
+      var rankCost = isCode && pairFits ? [0, 8, 45, 60] : [0, 8, 14, 30];
+      score -= rankCost[p.rank] + (p.mode === "stack" ? 6 : 0) + (p.cut ? 60 + 3 * p.cut : 0) + (p.name && p.name.truncated ? 120 : 0);
+      if (p.name && p.pricePx && p.name.px > p.pricePx) score -= 1000;
+      p.score = score;
+      plans.push(p);
+    }
+
+    var nameShares = name ? [0.5, 0.44, 0.56] : [0];
+    // Side by side: info at the bottom left, price at the bottom right.
+    nameShares.forEach(function (share) {
+      var nameH = Math.round(box.h * share), bh = box.h - nameH - (name ? 2 : 0);
+      groups.forEach(function (g) {
+        var n = g.lines.length;
+        if (n * MIN_INFO_PX * 1.1 > bh) return;
+        var maxInfo = Math.min(MAX_INFO_PX, Math.floor(bh / n / 1.1));
+        var texts = g.lines.map(function (l) { return l.text; });
+        var best = null;
+        for (var ip = maxInfo; ip >= MIN_INFO_PX; ip--) {
+          setFont(ctx, "normal", ip);
+          var iw = Math.max.apply(null, texts.map(function (t) { return ctx.measureText(t).width; }));
+          var pr = price ? fitPrice(ctx, price, box.w - iw - gap, bh, priceMaxFor(bh)) : { px: 0, fits: true };
+          if (price && (!pr.fits || box.w - iw - gap <= 0)) continue;
+          var cand = { mode: "side", nameH: nameH, bandH: bh, group: g, rank: g.rank, infoPx: ip, pricePx: pr.px, infoW: iw, cut: 0 };
+          // Price must stay well above the info text.
+          if (price && pr.px < Math.max(ip * 1.6, 24)) continue;
+          if (!best || cand.pricePx + cand.infoPx * 2 > best.pricePx + best.infoPx * 2) best = cand;
+        }
+        if (!best) {
+          // Doesn't fit at the smallest size: give the price its floor and shorten the set name.
+          var floorPx = price ? Math.min(Math.floor(priceMaxFor(bh)), Math.max(MIN_INFO_PX * 1.6, 24)) : 0;
+          var prW = 0;
+          if (price) { var pf = fitPrice(ctx, price, box.w * 0.6, bh, floorPx); floorPx = pf.px; setFont(ctx, "bold", floorPx); prW = ctx.measureText(price).width; }
+          var avail = box.w - prW - (price ? gap : 0);
+          setFont(ctx, "normal", MIN_INFO_PX);
+          var cut = 0, fitted = g.lines.map(function (l) { var f = fitInfoLine(ctx, l, avail); cut += f.cut; return f.text; });
+          best = { mode: "side", nameH: nameH, bandH: bh, group: g, rank: g.rank, infoPx: MIN_INFO_PX, pricePx: floorPx, cut: cut, fitted: fitted };
+        }
+        finish(best);
+      });
+    });
+
+    // Stacked: name, then the info line(s) across the full width, then the price on its own row.
+    if (price) {
+      groups.forEach(function (g) {
+        if (g.lines.length > 2) return;
+        [0.42, 0.5].forEach(function (pshare) {
+          var ph = Math.round(box.h * pshare);
+          var restH = box.h - ph - 2;
+          var n = g.lines.length;
+          var ih = Math.min(Math.round(n * MAX_INFO_PX * 1.1), restH - (name ? Math.ceil(MIN_NAME_PX * 1.15) : 0));
+          if (ih < n * MIN_INFO_PX * 1.1) return;
+          var texts = g.lines.map(function (l) { return l.text; });
+          var ir = fitPx(ctx, texts, box.w, Math.min(MAX_INFO_PX, ih / n / 1.1), MIN_INFO_PX, "normal");
+          var cut = 0, fitted = null;
+          if (!ir.fits) {
+            setFont(ctx, "normal", ir.px);
+            fitted = g.lines.map(function (l) { var f = fitInfoLine(ctx, l, box.w); cut += f.cut; return f.text; });
+          }
+          var usedIH = Math.ceil(n * ir.px * 1.1);
+          var pr = fitPrice(ctx, price, box.w, ph, priceMaxFor(ph));
+          finish({ mode: "stack", nameH: name ? restH - usedIH : 0, infoH: usedIH, bandH: ph, group: g, rank: g.rank,
+            infoPx: ir.px, pricePx: pr.px, cut: cut, fitted: fitted });
+        });
+      });
+    }
+    plans.sort(function (a, b) { return b.score - a.score; });
+    return plans[0] || null;
+  }
+
+  // Draws text and notes where its ink went (used by the layout tests to check nothing overlaps).
+  function put(ctx, boxes, kind, t, x, y) {
+    if (!t) return;
+    ctx.fillText(t, x, y);
+    var m = ctx.measureText(t);
+    var hasBox = typeof m.actualBoundingBoxRight === "number";
+    var x0 = hasBox ? x - m.actualBoundingBoxLeft : (ctx.textAlign === "right" ? x - m.width : x);
+    var x1 = hasBox ? x + m.actualBoundingBoxRight : x0 + m.width;
+    boxes.push({ kind: kind, text: t, x0: x0, x1: x1,
+      top: y - (m.actualBoundingBoxAscent || 0), bottom: y + (m.actualBoundingBoxDescent || 0) });
+  }
+  function drawNameLines(ctx, nm, box, boxes) {
+    setFont(ctx, "bold", nm.px);
+    ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+    var n = nm.lines.length, lh = n === 1 ? nm.px * 1.1 : Math.min(box.h / 2, nm.px * 1.12);
+    var top = box.y + Math.max(0, (box.h - lh * n) / (n === 1 ? 4 : 3));
+    nm.lines.forEach(function (l, i) {
+      put(ctx, boxes, "name", nm.truncated ? l : ellipsize(ctx, l, box.w), box.x, Math.round(top + lh * i + nm.px * CAP + (lh - nm.px * 1.0) / 2));
+    });
+  }
+
+  function drawSetLayout(ctx, box, name, price, info) {
+    var p = planSetLayout(ctx, box, name, price, info);
+    if (!p) return null;
+    ctx.fillStyle = "#000";
+    var boxes = p.boxes = [];
+    if (p.name) drawNameLines(ctx, p.name, { x: box.x, y: box.y, w: box.w, h: p.nameH - 1 }, boxes);
+    var texts = p.fitted || p.group.lines.map(function (l) { return l.text; });
+    var bottom = box.y + box.h;
+    if (p.mode === "side") {
+      var by = box.y + box.h - p.bandH;
+      var priceW = 0;
+      if (price) {
+        setFont(ctx, "bold", p.pricePx); priceW = ctx.measureText(price).width;
+        ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
+        put(ctx, boxes, "price", price, box.x + box.w, priceBaseline(ctx, price, p.pricePx, bottom));
+        setFont(ctx, "bold", p.pricePx);
+      }
+      setFont(ctx, "normal", p.infoPx); ctx.textAlign = "left";
+      var maxW = box.w - priceW - (price ? 6 : 0);
+      var lh = Math.min(p.bandH / texts.length, p.infoPx * 1.18);
+      // Last line sits on the same baseline as the price; the others stack above it.
+      texts.forEach(function (t, i) {
+        var yb = Math.round(bottom - lh * (texts.length - 1 - i));
+        if (yb - p.infoPx * CAP < by - 1) yb = Math.round(by + p.infoPx * CAP + lh * i);
+        put(ctx, boxes, "info", ellipsize(ctx, t, maxW), box.x, yb);
+      });
+    } else {
+      var iy = box.y + p.nameH + 1;
+      setFont(ctx, "normal", p.infoPx); ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+      texts.forEach(function (t, i) { put(ctx, boxes, "info", ellipsize(ctx, t, box.w), box.x, Math.round(iy + p.infoPx * 1.1 * i + p.infoPx * CAP + 2)); });
+      setFont(ctx, "bold", p.pricePx); ctx.textAlign = "right";
+      put(ctx, boxes, "price", price, box.x + box.w, priceBaseline(ctx, price, p.pricePx, bottom));
+    }
+    return p;
+  }
+
   /**
    * Draw one label onto a canvas.
    * Layout: picture on the left at full height; name across the top of the rest;
@@ -393,6 +677,18 @@
 
     var price = opts.show.price ? formatPrice(card.price, { hidePence: opts.hidePence, currency: opts.currency }) : "";
     if (opts.show.price && !price) warnings.push("No price");
+    var setTxt = opts.show.set ? setLabelFor(card) : "";
+    if (setTxt) {
+      // v3.0.2 layout: readable set code + number, see drawSetLayout.
+      var plan = drawSetLayout(ctx, text, opts.show.name ? card.name : "", price, {
+        set: setTxt, isCode: !!String(card.setCode || "").trim(), number: opts.show.number ? shortNumber(card.number, card.setCode) : "",
+        condition: opts.show.condition ? String(card.condition || "") : "" });
+      threshold(ctx, px.w, px.h);
+      return { warnings: warnings, qr: qrInfo, layout: plan && { mode: plan.mode, pricePx: plan.pricePx, infoPx: plan.infoPx,
+        namePx: plan.name ? plan.name.px : 0, nameLines: plan.name ? plan.name.lines : [], nameTruncated: !!(plan.name && plan.name.truncated),
+        infoLines: plan.fitted || plan.group.lines.map(function (l) { return l.text; }), infoCut: plan.cut,
+        boxes: plan.boxes, textBox: text } };
+    }
     var small = [];
     if (opts.show.number && card.number) small.push(card.number);
     if (opts.show.condition && card.condition) small.push(card.condition);
@@ -485,6 +781,7 @@
     DEFAULT_QR_TEMPLATE: DEFAULT_QR_TEMPLATE, qrTextFor: qrTextFor, filterCards: filterCards,
     fillTemplate: fillTemplate, toCard: toCard, renderLabel: renderLabel, makeZip: makeZip, crc32: crc32,
     safeFileName: safeFileName, CURRENCIES: CURRENCIES, currencyOf: currencyOf, detectCurrency: detectCurrency,
-    adjustPrice: adjustPrice, plainPrice: plainPrice, cardsToCSV: cardsToCSV
+    adjustPrice: adjustPrice, plainPrice: plainPrice, cardsToCSV: cardsToCSV,
+    setLabelFor: setLabelFor, shortNumber: shortNumber, MIN_INFO_PX: MIN_INFO_PX, FONT: FONT
   };
 })(typeof window !== "undefined" ? window : globalThis);
