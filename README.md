@@ -7,13 +7,16 @@ Everything runs in the browser and nothing is uploaded anywhere. Your card files
 
 - **Saved files.** Import a CSV once and it stays saved. You can import several, then use the dropdown at the top to switch between them.
   The ••• button lets you rename a file, change its currency, export it as CSV (or share it on a phone), fix which column is which, or delete it. Deleting asks first.
-- **Edit cards.** Tap a price or the pencil to edit the price, name, number, condition, set, rarity, copies and QR link. The label preview updates as you type.
+- **Edit cards.** Tap a price or the pencil to edit the price, name, number, condition, set code, set, rarity, copies and QR link. The label preview updates as you type.
   "+ Card" adds a new card. Delete asks first, and you can undo it.
 - **Change many prices at once.** "% Prices" raises or lowers the ticked cards (or every card showing) by a percentage.
   It can then round them, for example so every price ends in .99. You get a preview first and an Undo afterwards.
 - **£, $ or €** per file. Prices always print with the symbol first, like €1.99. Euro prices written as "2,50" are read correctly.
 - **Built for phones.** It works on a 360 px wide screen. There are big buttons, Cards / Label / Printer tabs, and a Print button always at the bottom.
   Print connects to the printer by itself if it isn't connected yet.
+- **Connecting.** "Connect printer" opens a list of every nearby Bluetooth device; pick the D110-xxxx one (on iPhone it may be unnamed).
+  Where the browser allows it, the app remembers that printer and shows a one-tap "Reconnect" button next time.
+  The Bluetooth check, the printer log and the old "search by name" button live under "Troubleshooting" at the bottom of the Printer tab.
 - **Dark and light mode.** It follows the phone's setting; the half-moon button switches it.
 - **Install it like an app** and use it offline once it's on a web link (see below).
 
@@ -24,7 +27,7 @@ Everything runs in the browser and nothing is uploaded anywhere. Your card files
 | Android phone, Chrome | Yes |
 | Windows / Mac / ChromeOS, Chrome or Edge | Yes |
 | iPhone / iPad, any browser (Safari, Chrome, Firefox) | No. Apple doesn't allow Web Bluetooth, and every iPhone browser uses Apple's engine. |
-| iPhone with the free **Bluefy** browser app | Probably. Bluefy adds Web Bluetooth, but it hasn't been tested with this printer yet. |
+| iPhone with the free **Bluefy** browser app | Yes. Tested with the D110: tap Connect printer and pick the D110-xxxx (or unnamed) device from the list. |
 | Any device | You can always download the labels as PNG pictures and print them from the official NIIMBOT app. |
 
 ## Using it on a phone (needs a web link)
@@ -53,7 +56,11 @@ On desktop Chrome/Edge, "Open a folder" imports every CSV in a folder in one go.
 ## CSV
 
 Any columns, any order. The app guesses which column is which, and you can change it under ••• > "Columns from the original CSV".
-Useful columns are name, number, price, set, rarity, condition, a QR link, and copies.
+Useful columns are name, number, price, set, set code, rarity, condition, a QR link, and copies.
+
+**Set code:** add a column called `Set Code` (also understood: `Expansion Code`, `set_code`, `Code`, `Expansion`) holding the short code, like OP05, SVI or MEW.
+When "Set" is ticked on the Label tab, the label shows the code with the number on one line, e.g. "OP05 · 119", instead of the full set name.
+Without a code it falls back to the set name, shortened if it's too long. A column called `Expansion` that holds full names (like "Scarlet & Violet 151") is treated as the set name, not the code.
 Prices can be written as 4, 4.5, £4.50, "£1,250.00" or 2,50. If the price column header says €, $ or £ (for example "Price (€)"), the file starts in that currency.
 Exported CSVs use the same columns, so they import straight back in.
 
