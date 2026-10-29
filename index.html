@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en-GB" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hobby Wizards Label Maker</title>
+<meta name="description" content="Price labels for the NIIMBOT D110, straight from your card list.">
+<meta name="theme-color" content="#0c0d12" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f5f8" media="(prefers-color-scheme: light)">
+<script>/* The install manifest only loads on a web link (it errors when opened as a local file). */
+if (/^https?:$/.test(location.protocol)) { var m = document.createElement("link"); m.rel = "manifest"; m.href = "manifest.webmanifest"; document.head.appendChild(m); }</script>
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="HW Labels">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16M7 12h10M10 19h4"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v13M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16z" fill="currentColor"/></symbol>
+    <symbol id="i-bt" viewBox="0 0 24 24"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></symbol>
+    <symbol id="i-percent" viewBox="0 0 24 24"><path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></symbol>
+    <symbol id="i-cards" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="15" rx="2"/><path d="M8 3h11a2 2 0 0 1 2 2v12"/></symbol>
+    <symbol id="i-design" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 11h4M7 14h2M15 13h2"/></symbol>
+  </defs>
+</svg>
+
+<header class="topbar">
+  <div class="brand">
+    <img src="icons/icon.svg" alt="" class="brand-mark" width="34" height="34">
+    <div class="brand-text">
+      <span class="brand-kicker">Hobby Wizards</span>
+      <span class="brand-title">Label Maker</span>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button type="button" class="chip printer-chip" id="printerChip" data-goto="printer" title="Printer">
+      <span class="dot"></span><span id="printerChipText">Printer</span>
+    </button>
+    <button type="button" class="icon-btn" id="themeBtn" title="Light / dark" aria-label="Switch light or dark look"><svg><use href="#i-theme"/></svg></button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <button type="button" role="tab" data-tab-btn="cards" class="active"><svg><use href="#i-cards"/></svg>Cards</button>
+  <button type="button" role="tab" data-tab-btn="design"><svg><use href="#i-design"/></svg>Label</button>
+  <button type="button" role="tab" data-tab-btn="printer"><svg><use href="#i-print"/></svg>Printer</button>
+</nav>
+
+<div class="layout">
+  <main class="col-main" data-tab="cards">
+    <section class="panel library" id="library">
+      <div class="lib-row">
+        <div class="select-wrap file-select">
+          <label class="sr-only" for="fileSelect">Card file</label>
+          <select id="fileSelect" aria-label="Card file"></select>
+        </div>
+        <button type="button" class="icon-btn" id="fileMenuBtn" title="File options" aria-label="File options"><svg><use href="#i-more"/></svg></button>
+        <label class="btn btn-accent import-btn" title="Import CSV files"><svg><use href="#i-upload"/></svg><span>Import</span><input type="file" id="csvFile" accept=".csv,text/csv,text/plain" multiple></label>
+      </div>
+      <p id="csvStatus" class="lib-status">No card files yet.</p>
+
+      <div id="emptyState" class="empty hidden">
+        <div class="empty-art"><canvas id="exampleCanvas"></canvas></div>
+        <h2>Your card files live here</h2>
+        <p>Import a CSV once and it stays saved on this device. Bring in as many as you like and switch between them from the menu above.</p>
+        <div class="empty-actions">
+          <label class="btn btn-accent btn-lg"><svg><use href="#i-upload"/></svg>Import CSV<input type="file" id="csvFile2" accept=".csv,text/csv,text/plain" multiple></label>
+          <button type="button" class="btn btn-lg" id="loadSample">Try sample cards</button>
+          <button type="button" class="btn btn-lg hidden" id="openFolder"><svg><use href="#i-folder"/></svg>Open a folder</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel cards-panel" id="cardsPanel">
+      <div class="toolbar">
+        <div class="search">
+          <svg><use href="#i-search"/></svg>
+          <input type="search" id="fText" placeholder="Search name or number" spellcheck="false" autocomplete="off">
+        </div>
+        <button type="button" class="icon-btn" id="filterBtn" title="Filters" aria-label="Filters" aria-expanded="false"><svg><use href="#i-filter"/></svg><span class="badge hidden" id="filterBadge"></span></button>
+      </div>
+      <div id="filters" class="filters hidden">
+        <div class="select-wrap"><select id="fSet" aria-label="Set"></select></div>
+        <div class="select-wrap"><select id="fRarity" aria-label="Rarity"></select></div>
+        <div class="select-wrap"><select id="fCondition" aria-label="Condition"></select></div>
+        <div class="price-range">
+          <label><span id="fMinLabel">Min £</span><input type="number" id="fMin" min="0" step="0.01" inputmode="decimal"></label>
+          <label><span id="fMaxLabel">Max £</span><input type="number" id="fMax" min="0" step="0.01" inputmode="decimal"></label>
+        </div>
+        <button type="button" class="btn btn-ghost" id="fClear">Clear filters</button>
+      </div>
+      <div class="list-actions">
+        <div class="seg">
+          <button type="button" id="selAll" title="Tick every card shown">All</button>
+          <button type="button" id="selNone" title="Untick everything">None</button>
+        </div>
+        <span id="previewSummary" class="muted small"></span>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-sm" id="bulkBtn" title="Change many prices"><svg><use href="#i-percent"/></svg><span>Prices</span></button>
+        <button type="button" class="btn btn-sm" id="addCard"><svg><use href="#i-plus"/></svg><span>Card</span></button>
+      </div>
+      <div id="warnings"></div>
+      <div id="previews" class="card-list"></div>
+    </section>
+  </main>
+
+  <aside class="col-side">
+    <section class="panel" id="step-label" data-tab="design">
+      <div class="panel-head"><h2>Label design</h2><span class="muted small" id="sizeInfo"></span></div>
+      <div class="design-preview"><canvas id="designCanvas"></canvas></div>
+      <div class="field-grid">
+        <label class="field">Label size<div class="select-wrap"><select id="size"></select></div></label>
+        <label class="field">Margin (mm)<input type="number" id="margin" min="0" max="3" step="0.25" value="0.75" inputmode="decimal"></label>
+      </div>
+      <div class="group">
+        <div class="group-title">Show on label</div>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="showName" checked><span>Card name</span></label>
+          <label class="toggle"><input type="checkbox" id="showNumber" checked><span>Number</span></label>
+          <label class="toggle"><input type="checkbox" id="showCondition" checked><span>Condition</span></label>
+          <label class="toggle"><input type="checkbox" id="showSet"><span>Set</span></label>
+          <label class="toggle"><input type="checkbox" id="showPrice" checked><span>Price</span></label>
+          <label class="toggle"><input type="checkbox" id="hidePence"><span>Drop ".00" on whole amounts</span></label>
+        </div>
+      </div>
+      <div class="group">
+        <div class="group-title">Picture on the left</div>
+        <div class="seg seg-wide" role="radiogroup">
+          <label><input type="radio" name="graphic" value="qr" checked><span>QR code</span></label>
+          <label><input type="radio" name="graphic" value="icon"><span>Icon</span></label>
+          <label><input type="radio" name="graphic" value="none"><span>None</span></label>
+        </div>
+        <div id="qrOptions" class="sub-options">
+          <label class="radio-row"><input type="radio" name="qrSource" value="auto" checked><span>The card's own link if it has one, otherwise the link below</span></label>
+          <label class="radio-row"><input type="radio" name="qrSource" value="template"><span>Always the link below</span></label>
+          <label class="radio-row"><input type="radio" name="qrSource" value="column"><span>Only the card's own link (no code if it has none)</span></label>
+          <textarea id="qrTemplate" rows="2" spellcheck="false" autocapitalize="off"></textarea>
+          <button type="button" class="btn btn-ghost btn-sm" id="qrReset">Use the Cardmarket search link</button>
+          <p class="hint">{name}, {number} and {condition} are filled in for each card. Shorter links give bigger, easier-to-scan codes.</p>
+        </div>
+        <div id="iconOptions" class="sub-options hidden">
+          <label class="btn btn-sm">Choose icon (PNG or SVG)<input type="file" id="iconFile" accept=".png,.svg,image/png,image/svg+xml"></label>
+          <span id="iconStatus" class="muted small">No icon chosen.</span>
+          <p class="hint">Bold black-and-white artwork prints best. Colours and greys become black or white.</p>
+        </div>
+      </div>
+      <div class="group">
+        <div class="group-title">Preview size</div>
+        <div class="select-wrap"><select id="zoom" aria-label="Preview size">
+          <option value="fit" selected>Fit to screen</option><option value="1">True size (1x)</option><option value="2">2x</option><option value="3">3x</option>
+        </select></div>
+        <p class="hint">Previews show the exact printed dots (8 per mm), just enlarged.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="step-print" data-tab="printer">
+      <div class="panel-head"><h2>Printer</h2></div>
+      <div class="printer-card">
+        <div class="printer-icon"><svg><use href="#i-bt"/></svg></div>
+        <div>
+          <div class="printer-name" id="printerName">NIIMBOT D110</div>
+          <p id="printerStatus" class="muted small">Not connected.</p>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-accent" id="connect"><svg><use href="#i-bt"/></svg>Connect printer</button>
+        <button type="button" class="btn" id="disconnect" disabled>Disconnect</button>
+        <button type="button" class="btn" id="stop" disabled>Stop after this label</button>
+      </div>
+      <div class="field-grid">
+        <label class="field">Darkness<div class="select-wrap"><select id="density"><option value="1">1 (light)</option><option value="2">2</option><option value="3" selected>3 (dark)</option><option value="4">4</option><option value="5">5</option></select></div></label>
+        <label class="field">Printer type<div class="select-wrap"><select id="printTask">
+          <option value="auto" selected>Detect automatically</option>
+          <option value="D110">D110 (original)</option>
+          <option value="D110M_V4">D110_M (newer)</option>
+          <option value="B1">B1 style</option>
+        </select></div></label>
+      </div>
+      <div class="tips">
+        <p><strong>Before connecting:</strong> close the NIIMBOT app and any other label app (the printer only talks to one at a time) and switch the D110 on.</p>
+        <p id="btSupport" class="hint"></p>
+      </div>
+      <div class="group">
+        <div class="group-title">If direct printing doesn't work</div>
+        <button type="button" class="btn" id="exportZip"><svg><use href="#i-download"/></svg>Download ticked labels as PNGs (zip)</button>
+        <p class="hint">Exact label-size pictures you can print from the official NIIMBOT app.</p>
+      </div>
+      <details class="log-box"><summary>Printer log</summary><pre id="log"></pre></details>
+    </section>
+    <footer class="foot">Hobby Wizards Label Maker v3 · Files stay on this device. · NiimBlueLib and qrcode-generator (MIT), see vendor/LICENSES.txt.</footer>
+  </aside>
+</div>
+
+<div class="actionbar" id="actionbar">
+  <div class="actionbar-inner">
+    <div class="tick-info">
+      <strong id="tickCount">0 cards ticked</strong>
+      <span id="tickSub" class="muted small"></span>
+    </div>
+    <button type="button" class="btn btn-print" id="print" disabled><svg><use href="#i-print"/></svg><span id="printLabel">Print</span></button>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"><span id="toastText"></span><button type="button" id="toastAction" class="hidden"></button></div>
+
+<!-- Edit a card -->
+<dialog id="editDialog" class="sheet">
+  <form method="dialog" id="editForm" novalidate>
+    <div class="sheet-head">
+      <h2 id="editTitle">Edit card</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="label-frame edit-preview"><canvas id="editCanvas"></canvas></div>
+      <label class="field price-field">Price
+        <div class="price-input"><span id="ePriceSym">£</span><input type="text" id="ePrice" inputmode="decimal" autocomplete="off" placeholder="0.00"></div>
+      </label>
+      <div class="nudges">
+        <button type="button" data-nudge="-1">−1</button><button type="button" data-nudge="-0.1">−0.10</button>
+        <button type="button" data-nudge="0.1">+0.10</button><button type="button" data-nudge="1">+1</button>
+      </div>
+      <label class="field">Card name<input type="text" id="eName" autocomplete="off"></label>
+      <div class="field-grid">
+        <label class="field">Number<input type="text" id="eNumber" autocomplete="off"></label>
+        <label class="field">Condition<input type="text" id="eCondition" list="condList" autocomplete="off"></label>
+      </div>
+      <div class="field-grid">
+        <label class="field">Set<input type="text" id="eSet" list="setList" autocomplete="off"></label>
+        <label class="field">Rarity<input type="text" id="eRarity" list="rarityList" autocomplete="off"></label>
+      </div>
+      <div class="field">Copies to print
+        <div class="stepper"><button type="button" id="eQtyMinus" aria-label="One fewer">−</button><input type="number" id="eQty" min="1" max="99" inputmode="numeric" aria-label="Copies"><button type="button" id="eQtyPlus" aria-label="One more">+</button></div>
+      </div>
+      <label class="field">QR link (optional)<input type="url" id="eLink" placeholder="Leave empty to use the Cardmarket search" autocomplete="off" spellcheck="false"></label>
+    </div>
+    <div class="sheet-foot">
+      <button type="button" class="btn btn-danger-ghost" id="eDelete"><svg><use href="#i-trash"/></svg>Delete</button>
+      <div class="spacer"></div>
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn btn-accent" id="eSave">Save</button>
+    </div>
+  </form>
+  <datalist id="condList"><option value="NM"><option value="LP"><option value="MP"><option value="HP"><option value="DMG"></datalist>
+  <datalist id="setList"></datalist><datalist id="rarityList"></datalist>
+</dialog>
+
+<!-- File options -->
+<dialog id="fileDialog" class="sheet">
+  <form method="dialog">
+    <div class="sheet-head"><h2>File options</h2><button type="button" class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="sheet-body">
+      <label class="field">File name
+        <div class="inline-input"><input type="text" id="fileName" autocomplete="off"><button type="button" class="btn" id="renameFile">Rename</button></div>
+      </label>
+      <div class="field">Currency for this file
+        <div class="seg seg-wide" role="radiogroup" id="currencySeg">
+          <label><input type="radio" name="currency" value="GBP"><span>£ Pound</span></label>
+          <label><input type="radio" name="currency" value="USD"><span>$ Dollar</span></label>
+          <label><input type="radio" name="currency" value="EUR"><span>€ Euro</span></label>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn" id="exportCsv"><svg><use href="#i-download"/></svg>Export CSV</button>
+        <button type="button" class="btn hidden" id="shareCsv"><svg><use href="#i-share"/></svg>Share CSV</button>
+      </div>
+      <details class="mapping-box" id="mappingBox">
+        <summary>Columns from the original CSV</summary>
+        <p class="hint">Which column holds what. Changing these rebuilds the cards from the original file, which undoes any edits.</p>
+        <div id="mapping" class="field-grid">
+          <label class="field">Name<div class="select-wrap"><select data-map="name"></select></div></label>
+          <label class="field">Number<div class="select-wrap"><select data-map="number"></select></div></label>
+          <label class="field">Price<div class="select-wrap"><select data-map="price"></select></div></label>
+          <label class="field">Set<div class="select-wrap"><select data-map="set"></select></div></label>
+          <label class="field">Rarity<div class="select-wrap"><select data-map="rarity"></select></div></label>
+          <label class="field">Condition<div class="select-wrap"><select data-map="condition"></select></div></label>
+          <label class="field">QR link<div class="select-wrap"><select data-map="qr"></select></div></label>
+          <label class="field">Copies<div class="select-wrap"><select data-map="qty"></select></div></label>
+        </div>
+      </details>
+      <div class="danger-zone">
+        <button type="button" class="btn btn-danger-ghost" id="deleteFile"><svg><use href="#i-trash"/></svg>Delete this file</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Bulk price change -->
+<dialog id="bulkDialog" class="sheet">
+  <form method="dialog" id="bulkForm">
+    <div class="sheet-head"><h2>Change prices</h2><button type="button" class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="sheet-body">
+      <div class="field">Which cards
+        <div class="seg seg-wide" role="radiogroup">
+          <label><input type="radio" name="bScope" value="ticked" checked><span id="bScopeTicked">Ticked</span></label>
+          <label><input type="radio" name="bScope" value="shown"><span id="bScopeShown">All showing</span></label>
+        </div>
+      </div>
+      <label class="field">Change by (%)
+        <input type="number" id="bPercent" step="1" value="0" inputmode="decimal">
+      </label>
+      <div class="nudges" id="bChips">
+        <button type="button" data-pct="-20">−20%</button><button type="button" data-pct="-10">−10%</button>
+        <button type="button" data-pct="10">+10%</button><button type="button" data-pct="20">+20%</button>
+      </div>
+      <label class="field">Then round to
+        <div class="select-wrap"><select id="bRound">
+          <option value="none">No rounding</option><option value="0.10">Nearest 10p / 10c</option>
+          <option value="0.50">Nearest 50p / 50c</option><option value="1">Nearest whole amount</option>
+          <option value="99">End in .99</option>
+        </select></div>
+      </label>
+      <div class="bulk-preview" id="bPreview"></div>
+    </div>
+    <div class="sheet-foot"><div class="spacer"></div><button type="button" class="btn" data-close>Cancel</button><button type="submit" class="btn btn-accent" id="bApply">Apply</button></div>
+  </form>
+</dialog>
+
+<!-- Pick CSVs from a folder (desktop Chrome) -->
+<dialog id="folderDialog" class="sheet">
+  <form method="dialog">
+    <div class="sheet-head"><h2 id="folderTitle">CSV files in folder</h2><button type="button" class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></div>
+    <div class="sheet-body"><div id="folderList" class="check-list"></div></div>
+    <div class="sheet-foot"><div class="spacer"></div><button type="button" class="btn" data-close>Cancel</button><button type="button" class="btn btn-accent" id="folderImport">Import ticked</button></div>
+  </form>
+</dialog>
+
+<!-- Confirm -->
+<dialog id="confirmDialog" class="sheet sheet-small">
+  <form method="dialog">
+    <div class="sheet-body">
+      <h2 id="confirmTitle">Are you sure?</h2>
+      <p id="confirmText" class="muted"></p>
+    </div>
+    <div class="sheet-foot"><div class="spacer"></div><button type="button" class="btn" id="confirmNo">Cancel</button><button type="button" class="btn btn-danger" id="confirmYes">Delete</button></div>
+  </form>
+</dialog>
+
+<script src="vendor/qrcode-generator-2.0.4.js"></script>
+<script src="vendor/niimbluelib-0.48.0.min.js"></script>
+<script src="labels.js"></script>
+<script src="store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
