@@ -247,6 +247,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .printer-card p { margin: 2px 0 0; }
 .tips p { font-size: 13px; margin: 0 0 6px; }
 .log-box summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px 0; }
+.diag-box { margin: 12px 0; }
+pre#diag { background: var(--panel-2); padding: 10px; border-radius: 10px; font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; user-select: text; -webkit-user-select: text; }
 pre#log { max-height: 220px; overflow: auto; background: var(--panel-2); padding: 10px; border-radius: 10px; font-size: 11px; white-space: pre-wrap; word-break: break-all; }
 .foot { color: var(--muted); font-size: 11.5px; padding: 4px 6px 10px; }
 

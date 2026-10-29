@@ -183,6 +183,10 @@ if (/^https?:$/.test(location.protocol)) { var m = document.createElement("link"
         <button type="button" class="btn" id="disconnect" disabled>Disconnect</button>
         <button type="button" class="btn" id="stop" disabled>Stop after this label</button>
       </div>
+      <div class="btn-row">
+        <button type="button" class="btn" id="connectAll"><svg><use href="#i-bt"/></svg>Find printer (show all devices)</button>
+      </div>
+      <p class="hint">If the normal button shows an empty list, try this one. Pick the device called D110-... (it may also show as an unnamed device).</p>
       <div class="field-grid">
         <label class="field">Darkness<div class="select-wrap"><select id="density"><option value="1">1 (light)</option><option value="2">2</option><option value="3" selected>3 (dark)</option><option value="4">4</option><option value="5">5</option></select></div></label>
         <label class="field">Printer type<div class="select-wrap"><select id="printTask">
@@ -201,9 +205,14 @@ if (/^https?:$/.test(location.protocol)) { var m = document.createElement("link"
         <button type="button" class="btn" id="exportZip"><svg><use href="#i-download"/></svg>Download ticked labels as PNGs (zip)</button>
         <p class="hint">Exact label-size pictures you can print from the official NIIMBOT app.</p>
       </div>
+      <div class="diag-box">
+        <div class="group-title">Bluetooth check (screenshot this if connecting fails)</div>
+        <pre id="diag">Checking...</pre>
+        <div class="btn-row"><button type="button" class="btn" id="diagRefresh">Check again</button><button type="button" class="btn" id="diagCopy">Copy</button></div>
+      </div>
       <details class="log-box"><summary>Printer log</summary><pre id="log"></pre></details>
     </section>
-    <footer class="foot">Hobby Wizards Label Maker v3 · Files stay on this device. · NiimBlueLib and qrcode-generator (MIT), see vendor/LICENSES.txt.</footer>
+    <footer class="foot">Hobby Wizards Label Maker v3.0.1 · Files stay on this device. · NiimBlueLib and qrcode-generator (MIT), see vendor/LICENSES.txt.</footer>
   </aside>
 </div>
 

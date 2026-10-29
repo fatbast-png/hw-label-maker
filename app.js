@@ -607,6 +607,7 @@
   };
 
   // ---------- printer ----------
+  var APP_VERSION = "3.0.1 (find-all + Bluetooth check)";
   function log(text) { var p = $("log"); p.textContent += text + "\n"; p.scrollTop = p.scrollHeight; }
   function status(text) { $("printerStatus").textContent = text; }
   function setChip(stateName, text) {
@@ -615,21 +616,89 @@
   }
   setChip("off", "Printer");
 
-  async function connectPrinter() {
-    if (!window.niimbluelib) { status("The printer library didn't load."); return false; }
-    if (!navigator.bluetooth) { noBluetooth(); return false; }
+  // The service NiimBlueLib talks to. bef8d6c9-... is the characteristic inside it; it's listed too
+  // (harmless) in case a browser wants it. The printer's second "UART" service (49535343-...) is left out
+  // on purpose: it looks usable but never answers, and the library would pick it if it were allowed.
+  var NIIMBOT_SERVICES = ["e7810a71-73ae-499d-8c15-faa9aef0c3f2", "bef8d6c9-9c21-4c9e-b632-bd58c1009f9f"];
+  var diag = { lastAttempt: "none yet", lastDevice: "", lastError: "", availability: "not checked" };
+  function errText(e) {
+    if (!e) return String(e);
+    var parts = [];
+    if (e.name) parts.push(e.name);
+    if (e.message) parts.push(e.message);
+    if (e.code !== undefined) parts.push("code " + e.code);
+    var t = parts.length ? parts.join(": ") : String(e);
+    if (e.stack && String(e.stack).indexOf(e.message || "@@") === -1) t += "\n" + e.stack;
+    else if (e.stack) t += "\n" + String(e.stack).split("\n").slice(0, 6).join("\n");
+    return t;
+  }
+  function showDiag() {
+    var bt = navigator.bluetooth;
+    var lines = [
+      "App: " + APP_VERSION,
+      "navigator.bluetooth present: " + (bt ? "yes" : "no"),
+      "requestDevice: " + (bt && typeof bt.requestDevice === "function" ? "yes" : "no"),
+      "getAvailability(): " + diag.availability,
+      "getDevices: " + (bt && typeof bt.getDevices === "function" ? "yes" : "no"),
+      "Secure page (https): " + (window.isSecureContext ? "yes" : "no"),
+      "Printer library loaded: " + (window.niimbluelib ? "yes" : "no"),
+      "User agent: " + navigator.userAgent,
+      "Last connect attempt: " + diag.lastAttempt,
+      "Device picked: " + (diag.lastDevice || "-"),
+      "Last error: " + (diag.lastError || "-")
+    ];
+    $("diag").textContent = lines.join("\n");
+  }
+  function checkAvailability() {
+    var bt = navigator.bluetooth;
+    if (!bt) { diag.availability = "n/a (no navigator.bluetooth)"; showDiag(); return; }
+    if (typeof bt.getAvailability !== "function") { diag.availability = "not supported by this browser"; showDiag(); return; }
+    diag.availability = "checking..."; showDiag();
+    Promise.resolve().then(function () { return bt.getAvailability(); }).then(function (v) {
+      diag.availability = String(v) + (v ? "" : " (Bluetooth off, or this browser isn't allowed to use it: check iPhone Settings > Bluefy > Bluetooth)");
+      showDiag();
+    }, function (e) { diag.availability = "error: " + errText(e); showDiag(); });
+  }
+
+  // showAll: open the browser's picker with every nearby device (no name filter), then hand the
+  // chosen device to NiimBlueLib via connect({ authorizedDevice }).
+  async function connectPrinter(showAll) {
+    showAll = showAll === true;
+    diag.lastAttempt = (showAll ? "Find printer (show all)" : "Connect printer") + " at " + new Date().toLocaleTimeString();
+    diag.lastError = ""; diag.lastDevice = ""; showDiag();
+    if (!window.niimbluelib) { diag.lastError = "printer library didn't load"; showDiag(); status("The printer library didn't load."); return false; }
+    if (!navigator.bluetooth) { diag.lastError = "navigator.bluetooth missing"; showDiag(); noBluetooth(); return false; }
     var lib = window.niimbluelib;
+    var device = null;
+    if (showAll) {
+      // requestDevice must be the first await so it still counts as a tap.
+      try {
+        status("Pick your printer (D110-...) from the list. It may also show as an unnamed device.");
+        setChip("busy", "Searching…");
+        device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: NIIMBOT_SERVICES });
+      } catch (e) {
+        diag.lastError = "requestDevice (show all): " + errText(e); showDiag();
+        if (e && e.name === "NotFoundError") status("No device picked (or the list was empty). See the Bluetooth check box below.");
+        else status("Couldn't search for devices: " + (e && e.message ? e.message : e));
+        setChip("off", "Printer"); log("requestDevice failed: " + errText(e));
+        return false;
+      }
+      diag.lastDevice = (device.name || "(no name)") + " id " + device.id; showDiag();
+      log("Picked device " + diag.lastDevice);
+    }
     var client = lib.instantiateClient("bluetooth");
     client.on("packetsent", function (e) { log(">> " + lib.Utils.bufToHex(e.packet.toBytes())); });
     client.on("packetreceived", function (e) { log("<< " + lib.Utils.bufToHex(e.packet.toBytes())); });
     client.on("disconnect", function () {
       printer.client = null; status("Disconnected."); setChip("off", "Printer");
-      $("connect").disabled = false; $("disconnect").disabled = true; updateSummary();
+      $("connect").disabled = false; $("connectAll").disabled = false; $("disconnect").disabled = true; updateSummary();
     });
     try {
-      status("Pick your printer (it shows as D110-...) in the box that opens.");
+      if (!device) status("Pick your printer (it shows as D110-...) in the box that opens.");
+      else status("Connecting to " + (device.name || "the device") + "...");
       setChip("busy", "Connecting…");
-      await client.connect();
+      var info = device ? await client.connect({ authorizedDevice: device }) : await client.connect();
+      if (info && info.deviceName && !diag.lastDevice) diag.lastDevice = info.deviceName;
       printer.client = client;
       var meta = client.getModelMetadata();
       var task = client.getPrintTaskType();
@@ -641,10 +710,17 @@
         Array.from($("density").options).forEach(function (o) { o.disabled = Number(o.value) > meta.densityMax; });
         if (Number($("density").value) > meta.densityMax) $("density").value = String(meta.densityMax);
       }
-      $("connect").disabled = true; $("disconnect").disabled = false; updateSummary();
+      $("connect").disabled = true; $("connectAll").disabled = true; $("disconnect").disabled = false; updateSummary();
+      diag.lastError = "none (connected)"; showDiag();
       return true;
     } catch (e) {
-      status("Couldn't connect: " + (e && e.message ? e.message : e)); setChip("off", "Printer");
+      diag.lastError = (device ? "connect to picked device: " : "connect: ") + errText(e); showDiag();
+      log("Connect failed: " + errText(e));
+      var hint = "";
+      if (device && e && /characteristic not found|No Services|NotFoundError|SecurityError/i.test((e.name || "") + " " + (e.message || "")))
+        hint = " That device may not be the printer, or it didn't offer the NIIMBOT service.";
+      status("Couldn't connect: " + (e && e.message ? e.message : e) + hint); setChip("off", "Printer");
+      try { client.disconnect(); } catch (x) { /* ignore */ }
       return false;
     }
   }
@@ -655,7 +731,20 @@
         : "This browser can't use Bluetooth. Use Chrome or Edge (Android, Windows or Mac), or download PNGs.");
     status(msg); toast(msg, "Get PNGs", function () { $("exportZip").click(); });
   }
-  $("connect").onclick = connectPrinter;
+  $("connect").onclick = function () { connectPrinter(false); };
+  $("connectAll").onclick = function () { connectPrinter(true); };
+  $("diagRefresh").onclick = checkAvailability;
+  $("diagCopy").onclick = function () {
+    var t = $("diag").textContent;
+    var done = function () { toast("Copied the Bluetooth check."); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { selectDiag(); });
+    else selectDiag();
+  };
+  function selectDiag() {
+    var r = document.createRange(); r.selectNodeContents($("diag"));
+    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    toast("Text selected: tap Copy, or take a screenshot.");
+  }
   $("disconnect").onclick = function () { if (printer.client) printer.client.disconnect(); };
   $("stop").onclick = function () { printer.stop = true; status("Stopping after this label..."); };
 
@@ -747,6 +836,7 @@
     ? "Bluetooth is available in this browser."
     : "Bluetooth isn't available here. It works in Chrome or Edge on Android, Windows and Mac (on a https link). On iPhone use the Bluefy browser app. You can still download PNGs.";
   if (!navigator.bluetooth) status("Bluetooth isn't available in this browser. You can still download PNG images below.");
+  checkAvailability();
 
   // ---------- start ----------
   document.body.setAttribute("data-active-tab", "cards");
